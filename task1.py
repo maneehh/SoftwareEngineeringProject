@@ -23,7 +23,7 @@ def _binc(x: float, t0: int, t1: int, labels=("NONE", "LOW", "HIGH")) -> str:
 def build_observations(df: pd.DataFrame, cfg: ObsConfig = ObsConfig()
                        ) -> Tuple[List[int], Dict[str, int], pd.DataFrame]:
     """
-    Task 1: window logs/metrics -> discretize -> observation IDs for HMM.
+    Task 1:
     Required cols: timestamp,cpu_pct,mem_pct,latency_ms,error_count,auth_fail_count
     """
     df = df.copy()
@@ -52,18 +52,3 @@ def build_observations(df: pd.DataFrame, cfg: ObsConfig = ObsConfig()
     vocab = {s: i for i, s in enumerate(sorted(win["symbol"].unique()))}
     obs_ids = [vocab[s] for s in win["symbol"]]
     return obs_ids, vocab, win
-
-# Optional quick test (remove in submission if you want)
-if __name__ == "__main__":
-    n = 200
-    df = pd.DataFrame({
-        "timestamp": pd.date_range("2026-01-01", periods=n, freq="5S"),
-        "cpu_pct": np.random.normal(55, 15, n).clip(0, 100),
-        "mem_pct": np.random.normal(65, 10, n).clip(0, 100),
-        "latency_ms": np.random.lognormal(np.log(150), 0.5, n).clip(10, 5000),
-        "error_count": np.random.poisson(0.2, n),
-        "auth_fail_count": np.random.poisson(0.05, n),
-    })
-    obs, vocab, table = build_observations(df)
-    print(len(obs), "observations,", len(vocab), "symbols")
-    print(table.head())
