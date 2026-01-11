@@ -1,7 +1,6 @@
 import numpy as np
 from dataclasses import dataclass
-from typing import List, Tuple, Optional
-
+from typing import List, Optional, Tuple
 
 @dataclass
 class TransitionAlert:
@@ -10,46 +9,27 @@ class TransitionAlert:
     to_state: int
     prob: float
 
-
 class HMMMonitor:
-
-    def __init__(self, A: np.ndarray, B: np.ndarray, pi: np.ndarray,
-                 state_names: Optional[List[str]] = None, eps: float = 1e-12):
-        self.A = A
-        self.B = B
-        self.pi = pi
+    
+    def __init__(self, A, B, pi, state_names=None, eps=1e-12):
+        self.A = A; self.B = B; self.pi = pi
         self.eps = eps
         self.state_names = state_names or [f"S{i}" for i in range(A.shape[0])]
         self.reset()
 
     def reset(self):
-        self.belief = self.pi.astype(float).copy()  # P(S_t | O_1..O_t) for online mode
+        self.belief = self.pi.astype(float).copy()
 
     def update(self, obs_id: int) -> Tuple[np.ndarray, float]:
-        """
-        Online filtering update:
-          pred = belief @ A
-          belief' ∝ pred * B[:, obs_id]
-        Returns:
-          belief (N,), nll_increment = -log P(O_t | O_1..O_{t-1})
-        """
-        pred = self.belief @ self.A                      # predictive state distribution
-        like = self.B[:, obs_id]                         # emission likelihoods
+        pred = self.belief @ self.A
+        like = self.B[:, obs_id]
         unnorm = pred * like
-        evidence = float(unnorm.sum())                   # P(O_t | past)
+        evidence = float(unnorm.sum())
         self.belief = unnorm / (evidence + self.eps)
-
-        nll_increment = -np.log(evidence + self.eps)     # anomaly score (bigger = more surprising)
+        nll_increment = -np.log(evidence + self.eps)  # warning score
         return self.belief.copy(), float(nll_increment)
 
     def predict_k_steps(self, k: int) -> np.ndarray:
-        """
-        Predict future hidden-state distributions:
-          P(S_{t+1}) = belief @ A
-          P(S_{t+2}) = belief @ A^2, etc.
-        Returns:
-          dists: (k, N)
-        """
         dists = []
         p = self.belief.copy()
         for _ in range(k):
@@ -63,16 +43,37 @@ class HMMMonitor:
         return [self.state_names[i] for i in idx]
 
     @staticmethod
-    def improbable_transitions(viterbi_path: List[int], A: np.ndarray,
-                               threshold: float = 0.05) -> List[TransitionAlert]:
-        """
-        Early warning based on improbable transitions in the decoded path.
-        Flags transitions whose probability A[s_t, s_{t+1}] is below threshold.
-        """
-        alerts: List[TransitionAlert] = []
+    def improbable_transitions(viterbi_path: List[int], A: np.ndarray, threshold: float = 0.05):
+        alerts = []
         for t in range(len(viterbi_path) - 1):
-            i, j = viterbi_path[t], viterbi_path[t + 1]
+            i, j = viterbi_path[t], viterbi_path[t+1]
             p = float(A[i, j])
             if p < threshold:
                 alerts.append(TransitionAlert(t=t, from_state=i, to_state=j, prob=p))
         return alerts
+
+# Run monitor over the observation stream
+monitor = HMMMonitor(A, B, pi, state_names=state_names)
+
+warning_log = []  # (t, nll, state_guess)
+THRESH_NLL = 3.0 
+
+for t, o in enumerate(obs_ids):
+    belief, nll = monitor.update(o)
+    if nll > THRESH_NLL:
+        warning_log.append((t, float(nll), state_names[int(np.argmax(belief))]))
+
+# Prediction results 
+pred5 = monitor.predict_k_steps(5)
+future_states = monitor.most_likely_future_states(5)
+
+# Improbable transition warnings from decoded path
+transition_alerts = monitor.improbable_transitions(path, A, threshold=0.05)
+
+print("✅ Task 5 completed")
+print("Prediction results (5 steps, most likely states):", future_states)
+print("Warning logs (NLL threshold) count:", len(warning_log))
+print("First 10 warning logs:", warning_log[:10])
+
+print("\nImprobable transition alerts count:", len(transition_alerts))
+print("First 5 transition alerts:", transition_alerts[:5])
