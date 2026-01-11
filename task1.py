@@ -1,8 +1,5 @@
-from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
-import numpy as np
-import pandas as pd
 
 @dataclass(frozen=True)
 class ObsConfig:
@@ -22,10 +19,6 @@ def _binc(x: float, t0: int, t1: int, labels=("NONE", "LOW", "HIGH")) -> str:
 
 def build_observations(df: pd.DataFrame, cfg: ObsConfig = ObsConfig()
                        ) -> Tuple[List[int], Dict[str, int], pd.DataFrame]:
-    """
-    Task 1:
-    Required cols: timestamp,cpu_pct,mem_pct,latency_ms,error_count,auth_fail_count
-    """
     df = df.copy()
     df["timestamp"] = pd.to_datetime(df["timestamp"], errors="raise")
     df = df.sort_values("timestamp").set_index("timestamp")
@@ -52,3 +45,13 @@ def build_observations(df: pd.DataFrame, cfg: ObsConfig = ObsConfig()
     vocab = {s: i for i, s in enumerate(sorted(win["symbol"].unique()))}
     obs_ids = [vocab[s] for s in win["symbol"]]
     return obs_ids, vocab, win
+
+
+df, true_states, sim_incidents = simulate_system_logs(n_windows=180)
+obs_ids, vocab, table = build_observations(df)
+
+print("✅ Task 1 completed")
+print("Number of observations:", len(obs_ids))
+print("Vocabulary size:", len(vocab))
+print("First 10 observation IDs:", obs_ids[:10])
+table.head()
