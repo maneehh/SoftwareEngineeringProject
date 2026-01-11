@@ -1,116 +1,83 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import List, Optional
+import os
 
-
-def plot_transition_matrix(A: np.ndarray, state_names: Optional[List[str]] = None,
-                           title: str = "Transition Matrix (A)"):
-    """
-    Heatmap-like visualization of A (no seaborn; pure matplotlib).
-    """
-    N = A.shape[0]
-    labels = state_names or [f"S{i}" for i in range(N)]
-
+def plot_transition_matrix(A, state_names, title="Transition Matrix (Learned A)"):
     fig, ax = plt.subplots()
     im = ax.imshow(A, aspect="auto")
     plt.colorbar(im, ax=ax)
-
     ax.set_title(title)
     ax.set_xlabel("To state")
     ax.set_ylabel("From state")
-    ax.set_xticks(range(N))
-    ax.set_yticks(range(N))
-    ax.set_xticklabels(labels, rotation=45, ha="right")
-    ax.set_yticklabels(labels)
-
-    # annotate probabilities (optional but impressive)
-    for i in range(N):
-        for j in range(N):
-            ax.text(j, i, f"{A[i, j]:.2f}", ha="center", va="center", fontsize=8)
-
+    ax.set_xticks(range(len(state_names)))
+    ax.set_yticks(range(len(state_names)))
+    ax.set_xticklabels(state_names, rotation=45, ha="right")
+    ax.set_yticklabels(state_names)
+    for i in range(A.shape[0]):
+        for j in range(A.shape[1]):
+            ax.text(j, i, f"{A[i,j]:.2f}", ha="center", va="center", fontsize=8)
     fig.tight_layout()
     return fig
 
-
-def plot_state_timeline(path: List[int], state_names: Optional[List[str]] = None,
-                        title: str = "Most Likely Hidden State Timeline (Viterbi)"):
-    """
-    Visualizes the decoded path over time as a step plot.
-    """
+def plot_state_timeline(path, state_names, title="Viterbi State Timeline"):
     path = np.asarray(path, dtype=int)
-    T = len(path)
-    N = int(path.max()) + 1 if T > 0 else 1
-    labels = state_names or [f"S{i}" for i in range(N)]
-
     fig, ax = plt.subplots()
-    ax.step(range(T), path, where="post")
+    ax.step(range(len(path)), path, where="post")
     ax.set_title(title)
     ax.set_xlabel("Time step (window index)")
     ax.set_ylabel("Hidden state")
-    ax.set_yticks(range(len(labels)))
-    ax.set_yticklabels(labels)
+    ax.set_yticks(range(len(state_names)))
+    ax.set_yticklabels(state_names)
     fig.tight_layout()
     return fig
 
-
-def plot_confidence(gamma: np.ndarray, title: str = "Inference Confidence Over Time"):
-    """
-    Shows confidence as max posterior probability per time step.
-    gamma: (T, N) from forward_backward()
-    """
-    gamma = np.asarray(gamma, dtype=float)
-    conf = gamma.max(axis=1)
-    T = len(conf)
-
+def plot_confidence(gamma, title="Confidence Over Time"):
+    conf = np.asarray(gamma).max(axis=1)
     fig, ax = plt.subplots()
-    ax.plot(range(T), conf)
+    ax.plot(range(len(conf)), conf)
     ax.set_title(title)
-    ax.set_xlabel("Time step (window index)")
+    ax.set_xlabel("Time step")
     ax.set_ylabel("Max posterior probability")
-    ax.set_ylim(0.0, 1.0)
+    ax.set_ylim(0, 1)
     fig.tight_layout()
     return fig
 
-
-def plot_entropy(gamma: np.ndarray, eps: float = 1e-12,
-                 title: str = "Posterior Entropy (Uncertainty) Over Time"):
-    """
-    Entropy H_t = -sum_i gamma_t(i) log gamma_t(i)
-    Lower entropy => more confident inference.
-    """
-    gamma = np.clip(np.asarray(gamma, dtype=float), eps, 1.0)
-    gamma = gamma / gamma.sum(axis=1, keepdims=True)
-    H = -np.sum(gamma * np.log(gamma), axis=1)
-    T = len(H)
-
+def plot_entropy(gamma, eps=1e-12, title="Posterior Entropy Over Time"):
+    g = np.clip(np.asarray(gamma), eps, 1.0)
+    g = g / g.sum(axis=1, keepdims=True)
+    H = -np.sum(g * np.log(g), axis=1)
     fig, ax = plt.subplots()
-    ax.plot(range(T), H)
+    ax.plot(range(len(H)), H)
     ax.set_title(title)
-    ax.set_xlabel("Time step (window index)")
+    ax.set_xlabel("Time step")
     ax.set_ylabel("Entropy")
     fig.tight_layout()
     return fig
 
+# Show plots inline
+figA = plot_transition_matrix(A, state_names)
+plt.show()
 
-def save_dashboard(A: np.ndarray, path: List[int], gamma: np.ndarray,
-                   state_names: Optional[List[str]] = None,
-                   out_dir: str = "outputs", prefix: str = "hmm"):
-    """
-    Saves a small dashboard as separate PNG files.
-    Keeps Task 7 modular; final main will call this later.
-    """
-    import os
-    os.makedirs(out_dir, exist_ok=True)
+figT = plot_state_timeline(path, state_names)
+plt.show()
 
-    figs = [
-        (plot_transition_matrix(A, state_names), f"{prefix}_A_transition.png"),
-        (plot_state_timeline(path, state_names), f"{prefix}_state_timeline.png"),
-        (plot_confidence(gamma), f"{prefix}_confidence.png"),
-        (plot_entropy(gamma), f"{prefix}_entropy.png"),
-    ]
+figC = plot_confidence(gamma)
+plt.show()
 
-    for fig, name in figs:
-        fig.savefig(os.path.join(out_dir, name), dpi=200)
-        plt.close(fig)
+figH = plot_entropy(gamma)
+plt.show()
 
-    return [name for _, name in figs]
+# Save plots to files
+os.makedirs("outputs", exist_ok=True)
+figA.savefig("outputs/learned_A_heatmap.png", dpi=300, bbox_inches="tight")
+figT.savefig("outputs/state_timeline.png", dpi=300, bbox_inches="tight")
+figC.savefig("outputs/confidence.png", dpi=300, bbox_inches="tight")
+figH.savefig("outputs/entropy.png", dpi=300, bbox_inches="tight")
+
+# Save initial A vs learned A 
+figA0 = plot_transition_matrix(A0, state_names, title="Transition Matrix (Initial A0)")
+figA0.savefig("outputs/initial_A_heatmap.png", dpi=300, bbox_inches="tight")
+plt.close(figA0)
+
+print("✅ Task 7 completed")
+print("Saved to outputs/: learned_A_heatmap.png, initial_A_heatmap.png, state_timeline.png, confidence.png, entropy.png")
